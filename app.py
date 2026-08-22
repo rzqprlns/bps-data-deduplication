@@ -1,9 +1,29 @@
+import textwrap
+
 import pandas as pd
 import streamlit as st
 
 from cleaning import clean_dataset
 from deduplication import run_deduplication
 
+
+# Prevent indented HTML inside multiline strings
+# from being interpreted as Markdown code blocks.
+_original_markdown = st.markdown
+
+
+def clean_markdown(body, *args, **kwargs):
+    if isinstance(body, str):
+        body = textwrap.dedent(body).strip()
+
+    return _original_markdown(
+        body,
+        *args,
+        **kwargs
+    )
+
+
+st.markdown = clean_markdown
 
 # =========================================================
 # PAGE CONFIG
