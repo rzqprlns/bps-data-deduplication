@@ -1,5 +1,3 @@
-import textwrap
-
 import pandas as pd
 import streamlit as st
 
@@ -7,379 +5,155 @@ from cleaning import clean_dataset
 from deduplication import run_deduplication
 
 
-# Prevent indented HTML inside multiline strings
-# from being interpreted as Markdown code blocks.
-_original_markdown = st.markdown
-
-
-def clean_markdown(body, *args, **kwargs):
-    if isinstance(body, str):
-        body = textwrap.dedent(body).strip()
-
-    return _original_markdown(
-        body,
-        *args,
-        **kwargs
-    )
-
-
-st.markdown = clean_markdown
-
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-
 st.set_page_config(
     page_title="Data Deduplication Lab",
     page_icon="✦",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
 
 # =========================================================
-# STYLE
+# VISUAL SYSTEM
 # =========================================================
 
 st.markdown(
     """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
-    :root {
-        --cream: #FFF9F0;
-        --paper: #FFFDF8;
-        --ink: #18212F;
-        --muted: #6D7480;
-        --line: #DDD7CD;
+:root {
+    --cream:#fffaf2;
+    --ink:#18212f;
+    --muted:#6f7480;
+    --blue:#4169e1;
+    --yellow:#ffd95a;
+    --mint:#ccefe3;
+    --line:#ded8cf;
+}
 
-        --blue: #3A67F2;
-        --blue-soft: #E8EEFF;
+html, body, [class*="css"] {
+    font-family:'DM Sans',sans-serif;
+}
 
-        --yellow: #FFD95A;
-        --yellow-soft: #FFF2B8;
+.stApp {
+    background:
+        radial-gradient(circle at 92% 4%, #e9eeff 0, transparent 23%),
+        radial-gradient(circle at 4% 18%, #fff2b8 0, transparent 20%),
+        var(--cream);
+    color:var(--ink);
+}
 
-        --mint: #CBEFE2;
-        --orange: #FF9364;
-    }
+.block-container {
+    max-width:1100px;
+    padding-top:2rem;
+    padding-bottom:5rem;
+}
 
-    html, body, [class*="css"] {
-        font-family: "DM Sans", sans-serif;
-        color: var(--ink);
-    }
+h1 {
+    font-family:'DM Sans',sans-serif !important;
+    font-weight:700 !important;
+    letter-spacing:-0.055em !important;
+    line-height:0.98 !important;
+}
 
-    .stApp {
-        background:
-            radial-gradient(circle at 92% 4%, #E8EEFF 0, transparent 22%),
-            radial-gradient(circle at 5% 18%, #FFF2B8 0, transparent 20%),
-            var(--cream);
-    }
+h2, h3 {
+    font-family:'DM Sans',sans-serif !important;
+    font-weight:700 !important;
+    letter-spacing:-0.03em !important;
+}
 
+p {
+    color:var(--muted);
+    line-height:1.75;
+}
+
+div[data-testid="stMetric"] {
+    background:rgba(255,255,255,.72);
+    border:1px solid var(--ink);
+    padding:1rem;
+    min-height:108px;
+}
+
+div[data-testid="stMetricLabel"] {
+    font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    font-size:.68rem;
+}
+
+div[data-testid="stMetricValue"] {
+    font-weight:700;
+    letter-spacing:-.03em;
+}
+
+div[data-testid="stDataFrame"] {
+    border:1px solid var(--line);
+}
+
+div.stButton > button {
+    border-radius:0;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:white;
+    padding:.75rem 1rem;
+    font-family:'IBM Plex Mono',monospace;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+
+div.stButton > button:hover {
+    background:var(--yellow);
+    color:var(--ink);
+    border-color:var(--ink);
+}
+
+div[data-testid="stDownloadButton"] > button {
+    width:100%;
+    border-radius:0;
+    border:1px solid var(--ink);
+    font-family:'IBM Plex Mono',monospace;
+}
+
+div[data-testid="stExpander"] {
+    border:1px solid var(--line);
+    border-radius:0;
+    background:rgba(255,255,255,.55);
+}
+
+hr {
+    border:none;
+    border-top:1px solid var(--line);
+    margin:3.2rem 0;
+}
+
+header[data-testid="stHeader"] {
+    background:transparent;
+}
+
+#MainMenu, footer {
+    visibility:hidden;
+}
+
+@media(max-width:760px) {
     .block-container {
-        max-width: 1120px;
-        padding-top: 2.3rem;
-        padding-bottom: 5rem;
+        padding-left:1rem;
+        padding-right:1rem;
+        padding-top:1.4rem;
     }
 
-    #MainMenu {
-        visibility: hidden;
+    h1 {
+        font-size:3.35rem !important;
     }
-
-    footer {
-        visibility: hidden;
-    }
-
-    header[data-testid="stHeader"] {
-        background: transparent;
-    }
-
-
-    /* TYPOGRAPHY */
-
-    .micro {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: .76rem;
-        letter-spacing: .10em;
-        text-transform: uppercase;
-        color: var(--blue);
-        font-weight: 500;
-    }
-
-    .hero-title {
-        font-size: clamp(3rem, 7vw, 5.8rem);
-        line-height: .98;
-        letter-spacing: -.055em;
-        font-weight: 700;
-        margin: .7rem 0 1.3rem 0;
-        color: var(--ink);
-    }
-
-    .hero-copy {
-        max-width: 720px;
-        font-size: 1.02rem;
-        line-height: 1.8;
-        color: var(--muted);
-    }
-
-    .section-kicker {
-        font-family: "IBM Plex Mono", monospace;
-        color: var(--blue);
-        letter-spacing: .10em;
-        font-size: .74rem;
-        text-transform: uppercase;
-        margin-top: 3.6rem;
-        margin-bottom: .45rem;
-    }
-
-    .section-title {
-        font-size: clamp(1.8rem, 4vw, 2.8rem);
-        letter-spacing: -.035em;
-        font-weight: 700;
-        margin-bottom: .7rem;
-    }
-
-    .section-copy {
-        color: var(--muted);
-        max-width: 760px;
-        line-height: 1.75;
-        margin-bottom: 1.4rem;
-    }
-
-
-    /* HERO METRICS */
-
-    .stat-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 0;
-        margin-top: 2rem;
-        border: 1px solid var(--ink);
-        background: rgba(255,255,255,.58);
-    }
-
-    .stat-card {
-        padding: 1.15rem 1.1rem;
-        border-right: 1px solid var(--ink);
-    }
-
-    .stat-card:last-child {
-        border-right: none;
-    }
-
-    .stat-value {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: 1.45rem;
-        font-weight: 500;
-        margin-bottom: .25rem;
-    }
-
-    .stat-label {
-        font-family: "IBM Plex Mono", monospace;
-        color: var(--muted);
-        font-size: .66rem;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-    }
-
-
-    /* PRIVACY */
-
-    .privacy-note {
-        margin-top: 1rem;
-        padding: 1rem 1.1rem;
-        background: var(--mint);
-        border: 1px solid var(--ink);
-        font-size: .86rem;
-        line-height: 1.6;
-    }
-
-
-    /* PIPELINE */
-
-    .pipeline {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: .75rem;
-        margin-top: 1.4rem;
-    }
-
-    .pipe-card {
-        padding: 1rem;
-        border: 1px solid var(--line);
-        background: rgba(255,255,255,.72);
-    }
-
-    .pipe-no {
-        font-family: "IBM Plex Mono", monospace;
-        color: var(--orange);
-        font-size: .68rem;
-        margin-bottom: .55rem;
-    }
-
-    .pipe-title {
-        font-weight: 700;
-        margin-bottom: .3rem;
-    }
-
-    .pipe-copy {
-        color: var(--muted);
-        font-size: .76rem;
-        line-height: 1.55;
-    }
-
-
-    /* BEFORE AFTER */
-
-    .transform-grid {
-        display: grid;
-        grid-template-columns: 1fr auto 1fr;
-        gap: 1rem;
-        align-items: center;
-        margin: 1.2rem 0 1.7rem;
-    }
-
-    .transform-card {
-        background: var(--paper);
-        border: 1px solid var(--ink);
-        padding: 1rem;
-    }
-
-    .transform-label {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: .66rem;
-        text-transform: uppercase;
-        letter-spacing: .07em;
-        color: var(--muted);
-        margin-bottom: .5rem;
-    }
-
-    .transform-value {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: .84rem;
-        line-height: 1.55;
-    }
-
-    .arrow {
-        color: var(--blue);
-        font-size: 1.5rem;
-        font-weight: 700;
-    }
-
-
-    /* RESULT STATUS */
-
-    .legend {
-        display: flex;
-        gap: .6rem;
-        flex-wrap: wrap;
-        margin: .8rem 0 1.2rem;
-    }
-
-    .legend-item {
-        font-family: "IBM Plex Mono", monospace;
-        font-size: .68rem;
-        border: 1px solid var(--ink);
-        padding: .4rem .65rem;
-    }
-
-    .keep {
-        background: var(--mint);
-    }
-
-    .remove {
-        background: var(--yellow-soft);
-    }
-
-
-    /* BUTTONS */
-
-    div.stButton > button {
-        border-radius: 0;
-        border: 1px solid var(--ink);
-        background: var(--ink);
-        color: white;
-        padding: .72rem 1rem;
-        font-family: "IBM Plex Mono", monospace;
-        font-size: .75rem;
-        letter-spacing: .04em;
-        text-transform: uppercase;
-    }
-
-    div.stButton > button:hover {
-        background: var(--yellow);
-        color: var(--ink);
-    }
-
-    div[data-testid="stDownloadButton"] > button {
-        width: 100%;
-        border-radius: 0;
-        border: 1px solid var(--ink);
-        font-family: "IBM Plex Mono", monospace;
-    }
-
-    div[data-testid="stMetric"] {
-        border: 1px solid var(--ink);
-        background: rgba(255,255,255,.72);
-        padding: 1rem;
-    }
-
-    div[data-testid="stDataFrame"] {
-        border: 1px solid var(--line);
-        background: var(--paper);
-    }
-
-
-    /* MOBILE */
-
-    @media(max-width: 760px) {
-        .block-container {
-            padding-left: 1rem;
-            padding-right: 1rem;
-            padding-top: 1.6rem;
-        }
-
-        .hero-title {
-            font-size: 3.2rem;
-        }
-
-        .stat-grid {
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .stat-card {
-            border-bottom: 1px solid var(--ink);
-        }
-
-        .stat-card:nth-child(2) {
-            border-right: none;
-        }
-
-        .stat-card:nth-child(3),
-        .stat-card:nth-child(4) {
-            border-bottom: none;
-        }
-
-        .pipeline {
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .transform-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .arrow {
-            transform: rotate(90deg);
-            text-align: center;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
+}
+</style>
+""",
+    unsafe_allow_html=True,
 )
 
 
 # =========================================================
-# DATA
+# HELPERS
 # =========================================================
 
 @st.cache_data
@@ -387,151 +161,111 @@ def load_sample_data():
     return pd.read_csv("synthetic_bps_dedup_raw.csv")
 
 
+def label(text):
+    st.caption(text.upper())
+
+
 # =========================================================
 # HERO
 # =========================================================
 
-st.markdown(
+label("Rizqi / Data Lab · 01")
+
+st.title("Messy records.\nCleaner decisions.")
+
+st.write(
     """
-    <div class="micro">RIZQI / DATA LAB · 01</div>
-
-    <div class="hero-title">
-        Messy records.<br>
-        Cleaner decisions.
-    </div>
-
-    <div class="hero-copy">
-        An interactive reconstruction of a large-scale data-cleaning
-        workflow used to standardize inconsistent records and identify
-        repeated observations.
-    </div>
-    """,
-    unsafe_allow_html=True
+An interactive reconstruction of a large-scale data-cleaning workflow
+used to standardize inconsistent operational records and identify
+repeated observations.
+"""
 )
 
-st.markdown(
-    """
-    <div class="stat-grid">
-        <div class="stat-card">
-            <div class="stat-value">191K+</div>
-            <div class="stat-label">Original records</div>
-        </div>
+hero1, hero2, hero3, hero4 = st.columns(4)
 
-        <div class="stat-card">
-            <div class="stat-value">46K+</div>
-            <div class="stat-label">Duplicates removed</div>
-        </div>
+with hero1:
+    st.metric("Original records", "191K+")
 
-        <div class="stat-card">
-            <div class="stat-value">3</div>
-            <div class="stat-label">Matching checks</div>
-        </div>
+with hero2:
+    st.metric("Duplicates removed", "46K+")
 
-        <div class="stat-card">
-            <div class="stat-value">Python</div>
-            <div class="stat-label">Primary workflow</div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
+with hero3:
+    st.metric("Matching checks", "3")
+
+with hero4:
+    st.metric("Primary workflow", "Python")
+
+st.info(
+    "🔒 Public-safe reconstruction — this demo uses synthetic data only. "
+    "No original or identifiable BPS data is included."
 )
 
-st.markdown(
-    """
-    <div class="privacy-note">
-        <strong>Public-safe reconstruction.</strong>
-        This demo uses synthetic data only.
-        No original or identifiable BPS data is included.
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+
+st.divider()
 
 
 # =========================================================
-# PIPELINE
+# WORKFLOW
 # =========================================================
 
-st.markdown(
+label("The workflow")
+st.header("Four simple steps.")
+
+st.write(
     """
-    <div class="section-kicker">THE WORKFLOW</div>
-    <div class="section-title">Four simple steps.</div>
-
-    <div class="section-copy">
-        The workflow is intentionally easy to follow:
-        inspect the records, standardize inconsistent text,
-        find duplicate groups, then keep one representative record.
-    </div>
-
-    <div class="pipeline">
-        <div class="pipe-card">
-            <div class="pipe-no">01 / INPUT</div>
-            <div class="pipe-title">Inspect</div>
-            <div class="pipe-copy">
-                Review raw names, addresses, and kecamatan.
-            </div>
-        </div>
-
-        <div class="pipe-card">
-            <div class="pipe-no">02 / CLEAN</div>
-            <div class="pipe-title">Standardize</div>
-            <div class="pipe-copy">
-                Normalize common formatting differences.
-            </div>
-        </div>
-
-        <div class="pipe-card">
-            <div class="pipe-no">03 / MATCH</div>
-            <div class="pipe-title">Group</div>
-            <div class="pipe-copy">
-                Identify records that resolve to the same entity.
-            </div>
-        </div>
-
-        <div class="pipe-card">
-            <div class="pipe-no">04 / DECIDE</div>
-            <div class="pipe-title">Keep / Remove</div>
-            <div class="pipe-copy">
-                Preserve one representative and remove redundant copies.
-            </div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
+The logic is straightforward: inspect the raw data, standardize
+different writing styles, identify duplicate groups, then keep one
+representative record and remove the repeated copies.
+"""
 )
 
+w1, w2, w3, w4 = st.columns(4)
+
+with w1:
+    label("01 / Input")
+    st.subheader("Inspect")
+    st.caption("Review raw names, addresses, and kecamatan.")
+
+with w2:
+    label("02 / Clean")
+    st.subheader("Standardize")
+    st.caption("Normalize common formatting differences.")
+
+with w3:
+    label("03 / Match")
+    st.subheader("Group")
+    st.caption("Find records representing the same entity.")
+
+with w4:
+    label("04 / Decide")
+    st.subheader("Keep / Remove")
+    st.caption("Retain one record and remove redundant copies.")
+
+
+st.divider()
+
 
 # =========================================================
-# STEP 01
+# INPUT
 # =========================================================
 
-st.markdown(
-    """
-    <div class="section-kicker">STEP 01 · INPUT</div>
-    <div class="section-title">Start with raw records.</div>
-    """,
-    unsafe_allow_html=True
-)
+label("Step 01 · Input")
+st.header("Start with raw records.")
 
 data_source = st.radio(
     "Data source",
     ["Use sample data", "Upload CSV"],
     horizontal=True,
-    label_visibility="collapsed"
 )
 
 if data_source == "Use sample data":
     df = load_sample_data()
-
 else:
-    uploaded_file = st.file_uploader(
-        "Upload CSV",
-        type=["csv"]
-    )
+    uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
     if uploaded_file is None:
         st.info(
-            "Upload a CSV with: record_id, nama_usaha, alamat, kecamatan."
+            "Upload a CSV containing: record_id, nama_usaha, alamat, kecamatan."
         )
         st.stop()
 
@@ -542,7 +276,7 @@ required_columns = {
     "record_id",
     "nama_usaha",
     "alamat",
-    "kecamatan"
+    "kecamatan",
 }
 
 if not required_columns.issubset(df.columns):
@@ -552,15 +286,15 @@ if not required_columns.issubset(df.columns):
     st.stop()
 
 
-c1, c2, c3 = st.columns(3)
+i1, i2, i3 = st.columns(3)
 
-with c1:
+with i1:
     st.metric("Records loaded", f"{len(df):,}")
 
-with c2:
+with i2:
     st.metric("Kecamatan", df["kecamatan"].nunique())
 
-with c3:
+with i3:
     st.metric("Columns", len(df.columns))
 
 
@@ -568,60 +302,59 @@ with st.expander("Preview raw data", expanded=True):
     st.dataframe(
         df.head(15),
         use_container_width=True,
-        hide_index=True
-)
+        hide_index=True,
+    )
+
+
+st.divider()
+
 
 # =========================================================
-# STEP 02
+# STANDARDIZATION
 # =========================================================
 
-st.markdown(
+label("Step 02 · Standardization")
+st.header("Make different writing styles comparable.")
+
+st.write(
     """
-    <div class="section-kicker">STEP 02 · STANDARDIZATION</div>
-    <div class="section-title">Make different writing styles comparable.</div>
-
-    <div class="section-copy">
-        The same address can appear in several formats.
-        Standardization reduces those formatting differences
-        before records are compared.
-    </div>
-
-    <div class="transform-grid">
-        <div class="transform-card">
-            <div class="transform-label">BEFORE</div>
-            <div class="transform-value">
-                Jl. Flamboyan No. 247 RT 13/RW 3
-            </div>
-        </div>
-
-        <div class="arrow">→</div>
-
-        <div class="transform-card">
-            <div class="transform-label">AFTER</div>
-            <div class="transform-value">
-                JALAN FLAMBOYAN NOMOR 247 RT 13 RW 03
-            </div>
-        </div>
-    </div>
-    """,
-    unsafe_allow_html=True
+A single address can be written in several ways.
+Before looking for duplicates, those superficial formatting differences
+need to be standardized.
+"""
 )
+
+before, arrow, after = st.columns([1, 0.15, 1])
+
+with before:
+    label("Before")
+    st.code(
+        "Jl. Flamboyan No. 247 RT 13/RW 3",
+        language=None,
+    )
+
+with arrow:
+    st.markdown("### →")
+
+with after:
+    label("After")
+    st.code(
+        "JALAN FLAMBOYAN NOMOR 247 RT 13 RW 03",
+        language=None,
+    )
 
 
 if st.button("Run standardization"):
-
     cleaned_df = clean_dataset(df)
-
     st.session_state["cleaned_df"] = cleaned_df
     st.session_state.pop("dedup_result", None)
 
 
 if "cleaned_df" in st.session_state:
-
     cleaned_df = st.session_state["cleaned_df"]
 
     st.success(
-        f"Done — {len(cleaned_df):,} records standardized."
+        f"Standardization complete — {len(cleaned_df):,} records processed."
     )
 
     comparison = cleaned_df[
@@ -629,46 +362,38 @@ if "cleaned_df" in st.session_state:
             "nama_usaha",
             "nama_normalized",
             "alamat",
-            "alamat_normalized"
+            "alamat_normalized",
         ]
     ].head(15)
 
-    with st.expander("See the before → after comparison", expanded=True):
+    with st.expander("See before → after", expanded=True):
         st.dataframe(
             comparison,
             use_container_width=True,
-            hide_index=True
+            hide_index=True,
         )
+        st.divider()
 
 
 # =========================================================
-# STEP 03
+# DUPLICATE CHECK
 # =========================================================
 
-st.markdown(
+label("Step 03 · Duplicate check")
+st.header("Find records that belong together.")
+
+st.write(
     """
-    <div class="section-kicker">STEP 03 · DUPLICATE CHECK</div>
-    <div class="section-title">Find records that belong together.</div>
-
-    <div class="section-copy">
-        After standardization, records are grouped within the same
-        kecamatan using normalized name and address information.
-    </div>
-    """,
-    unsafe_allow_html=True
+After standardization, records are compared within the same kecamatan.
+The workflow checks normalized name, normalized address,
+and their combination.
+"""
 )
 
-
 if "cleaned_df" not in st.session_state:
-
-    st.info(
-        "Run standardization first."
-    )
-
+    st.info("Run standardization first.")
 else:
-
     if st.button("Find duplicate groups"):
-
         result = run_deduplication(
             st.session_state["cleaned_df"]
         )
@@ -677,23 +402,22 @@ else:
 
 
 # =========================================================
-# STEP 04
+# RESULT
 # =========================================================
 
 if "dedup_result" in st.session_state:
-
     result = st.session_state["dedup_result"].copy()
 
     result["Decision"] = result[
         "is_redundant_duplicate"
     ].map({
         False: "KEEP",
-        True: "REMOVE"
+        True: "REMOVE",
     })
 
     result["Duplicate Group"] = (
-        "GROUP-" +
-        result["duplicate_group_id"]
+        "GROUP-"
+        + result["duplicate_group_id"]
         .astype(str)
         .str.zfill(4)
     )
@@ -701,7 +425,6 @@ if "dedup_result" in st.session_state:
     result["Records Found"] = result[
         "duplicate_group_size"
     ]
-
 
     removed = result[
         result["Decision"] == "REMOVE"
@@ -712,50 +435,35 @@ if "dedup_result" in st.session_state:
     ].copy()
 
     duplicate_rate = (
-        len(removed)
-        / len(result)
-        * 100
+        len(removed) / len(result) * 100
     )
 
+    st.divider()
 
-    st.markdown(
+    label("Step 04 · Decision")
+    st.header("Keep one. Remove the repeated copies.")
+
+    st.write(
         """
-        <div class="section-kicker">STEP 04 · DECISION</div>
-        <div class="section-title">Keep one. Remove the repeated copies.</div>
-
-        <div class="section-copy">
-            Each duplicate group keeps one representative record.
-            The remaining repeated records are marked for removal.
-        </div>
-
-        <div class="legend">
-            <div class="legend-item keep">KEEP = representative record</div>
-            <div class="legend-item remove">REMOVE = redundant copy</div>
-        </div>
-        """,
-        unsafe_allow_html=True
+A duplicate group represents several records that resolve to the same
+normalized entity. One representative record is kept; the remaining
+copies are marked for removal.
+"""
     )
 
+    st.success("KEEP = representative record")
+    st.warning("REMOVE = redundant copy")
 
     r1, r2, r3, r4 = st.columns(4)
 
     with r1:
-        st.metric(
-            "Processed",
-            f"{len(result):,}"
-        )
+        st.metric("Processed", f"{len(result):,}")
 
     with r2:
-        st.metric(
-            "Records kept",
-            f"{len(kept):,}"
-        )
+        st.metric("Records kept", f"{len(kept):,}")
 
     with r3:
-        st.metric(
-            "Records removed",
-            f"{len(removed):,}"
-        )
+        st.metric("Records removed", f"{len(removed):,}")
 
     with r4:
         st.metric(
@@ -764,7 +472,7 @@ if "dedup_result" in st.session_state:
         )
 
 
-    st.markdown("### Duplicate review")
+    st.subheader("Duplicate review")
 
     duplicate_view = result[
         result["Records Found"] > 1
@@ -776,25 +484,24 @@ if "dedup_result" in st.session_state:
             "kecamatan",
             "Duplicate Group",
             "Records Found",
-            "Decision"
+            "Decision",
         ]
     ].copy()
-
 
     st.dataframe(
         duplicate_view.head(100),
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
     )
-
 
     st.caption(
-        "Duplicate Group = records that resolve to the same normalized entity. "
-        "Records Found = how many records are inside that group."
+        "Duplicate Group = ID created by this demo for records that "
+        "resolve to the same normalized entity. "
+        "Records Found = number of records in that group."
     )
 
 
-    st.markdown("### Download the result")
+    st.subheader("Download the result")
 
     clean_csv = kept.to_csv(
         index=False
@@ -804,7 +511,6 @@ if "dedup_result" in st.session_state:
         index=False
     ).encode("utf-8")
 
-
     d1, d2 = st.columns(2)
 
     with d1:
@@ -812,7 +518,7 @@ if "dedup_result" in st.session_state:
             "Download clean dataset",
             clean_csv,
             "clean_dataset.csv",
-            "text/csv"
+            "text/csv",
         )
 
     with d2:
@@ -820,45 +526,33 @@ if "dedup_result" in st.session_state:
             "Download removed duplicates",
             removed_csv,
             "duplicate_records.csv",
-            "text/csv"
+            "text/csv",
         )
+
+
+st.divider()
 
 
 # =========================================================
 # METHOD NOTE
 # =========================================================
 
-st.markdown(
+label("Method note")
+st.header("Why process records by kecamatan?")
+
+st.write(
     """
-    <div class="section-kicker">METHOD NOTE</div>
-    <div class="section-title">Why process records by kecamatan?</div>
+The original dataset was large. Duplicate processing was therefore
+performed within each kecamatan instead of processing the entire
+dataset together.
 
-    <div class="section-copy">
-        The original dataset was large, so duplicate processing
-        was performed within each kecamatan rather than across the
-        entire dataset at once.
-
-        This reduced the processing workload, but it also creates
-        a limitation: a duplicate recorded under different kecamatan
-        could potentially be missed.
-    </div>
-    """,
-    unsafe_allow_html=True
+This reduced the processing workload, but it also introduced a trade-off:
+a duplicate recorded under different kecamatan could potentially be missed.
+"""
 )
 
-st.markdown(
-    """
-    <div style="
-        margin-top:4rem;
-        padding-top:1.3rem;
-        border-top:1px solid #DDD7CD;
-        color:#6D7480;
-        font-family:'IBM Plex Mono', monospace;
-        font-size:.74rem;
-    ">
-        RIZQI APRILIANES · DATA QUALITY / AUTOMATION / ANALYTICS<br>
-        Synthetic public reconstruction
-    </div>
-    """,
-    unsafe_allow_html=True
-        )
+
+st.divider()
+
+label("Rizqi Aprilianes · Data Quality / Automation / Analytics")
+st.caption("Synthetic public reconstruction")
